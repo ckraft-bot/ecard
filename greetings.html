@@ -1,17 +1,8 @@
-<!-- 
-Captures video feed.
-
-Loads TensorFlow HandPose model.
-
-When a hand is detected, shows “Greetings!” message.
-
-Dots mark hand landmarks. 
--->
-
 <!DOCTYPE html>
 <html>
   <head>
     <meta charset="utf-8">
+    <title>Greetings App</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose@0.0.8/dist/handpose.min.js"></script>
@@ -22,14 +13,19 @@ Dots mark hand landmarks.
 
       async function setup() {
         createCanvas(400, 400);
-        video = createCapture(VIDEO);
+
+        // Request front camera automatically
+        const constraints = { video: { facingMode: "user" } };
+        video = createCapture(constraints);
         video.size(width, height);
         video.hide();
 
         model = await handpose.load();
         detectHands();
+
         textAlign(CENTER);
         textSize(32);
+
         button = createButton("Restart");
         button.position(160, 360);
         button.mousePressed(() => greeting = false);

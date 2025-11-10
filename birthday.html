@@ -1,52 +1,64 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
-  </head>
-  <body>
-    <script>
-      let mic, blowing = false, flames = [true, true, true], button;
-
-      function setup() {
-        createCanvas(400, 400);
-        mic = new p5.AudioIn();
-        mic.start();
-        button = createButton("Restart");
-        button.position(160, 360);
-        button.mousePressed(restartFlames);
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Birthday Cake</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+</head>
+<body>
+  <script>
+    // Request mic access immediately
+    async function requestPermissions() {
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log("Mic access granted");
+      } catch (err) {
+        console.warn("Mic access denied", err);
       }
+    }
+    requestPermissions();
 
-      function draw() {
-        background(255, 200, 220);
-        drawCake();
+    let mic, blowing = false, flames = [true, true, true], button;
 
-        let vol = mic.getLevel();
-        if (vol > 0.1) blowing = true;
+    function setup() {
+      createCanvas(400, 400);
+      mic = new p5.AudioIn();
+      mic.start();
+      button = createButton("Restart");
+      button.position(160, 360);
+      button.mousePressed(restartFlames);
+    }
 
-        if (blowing) {
-          for (let i = 0; i < flames.length; i++) flames[i] = false;
+    function draw() {
+      background(255, 200, 220);
+      drawCake();
+
+      let vol = mic.getLevel();
+      if (vol > 0.1) blowing = true;
+
+      if (blowing) {
+        for (let i = 0; i < flames.length; i++) flames[i] = false;
+      }
+    }
+
+    function drawCake() {
+      fill(255, 180, 120);
+      rect(100, 250, 200, 100, 20);
+      for (let i = 0; i < 3; i++) {
+        let x = 150 + i * 50;
+        fill(100);
+        rect(x, 200, 10, 50);
+        if (flames[i]) {
+          fill(255, 150, 0);
+          ellipse(x + 5, 195, 15, 20);
         }
       }
+    }
 
-      function drawCake() {
-        fill(255, 180, 120);
-        rect(100, 250, 200, 100, 20);
-        for (let i = 0; i < 3; i++) {
-          let x = 150 + i * 50;
-          fill(100);
-          rect(x, 200, 10, 50);
-          if (flames[i]) {
-            fill(255, 150, 0);
-            ellipse(x + 5, 195, 15, 20);
-          }
-        }
-      }
-
-      function restartFlames() {
-        flames = [true, true, true];
-        blowing = false;
-      }
-    </script>
-  </body>
+    function restartFlames() {
+      flames = [true, true, true];
+      blowing = false;
+    }
+  </script>
+</body>
 </html>

@@ -2,6 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8">
+    <title>Eye Contact Confetti</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.3/dist/face-landmarks-detection.min.js"></script>
@@ -12,18 +13,23 @@
 
       async function setup() {
         createCanvas(400, 400);
-        video = createCapture(VIDEO);
+
+        // Request front camera automatically
+        const constraints = { video: { facingMode: "user" } };
+        video = createCapture(constraints);
         video.size(width, height);
         video.hide();
 
         textAlign(CENTER);
         textSize(32);
 
+        // Load face landmarks model
         model = await faceLandmarksDetection.load(
           faceLandmarksDetection.SupportedPackages.mediapipeFacemesh
         );
 
         detectFace();
+
         button = createButton("Restart");
         button.position(160, 360);
         button.mousePressed(restart);
@@ -41,7 +47,6 @@
         rect(0, 0, width, 60);
         fill(0);
 
-        // Eye contact = both eyes detected
         if (faces.length > 0 && !triggered) {
           triggered = true;
           for (let i = 0; i < 200; i++) {
@@ -60,6 +65,7 @@
             fill(c.color);
             rect(c.x, c.y, 6, 10);
             c.y += c.speed;
+            if (c.y > height) c.y = random(-50, 0); // recycle confetti
           }
         } else {
           text("Make Eye Contact!", width / 2, 40);
