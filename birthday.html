@@ -97,51 +97,7 @@
     let blowStrength = 0;
     let targetCandle = 0;
 
-    function setup() {
-      let canvas = createCanvas(500, 600);
-      canvas.parent('canvas-container');
-
-      // Initialize buttons
-      initializeButtons();
-
-      // Request microphone access
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        navigator.mediaDevices
-          .getUserMedia({ audio: true })
-          .then((stream) => {
-            console.log("Microphone permission granted");
-            // Initialize p5.AudioIn now that we have permission
-            try {
-              mic = new p5.AudioIn();
-              mic.start();
-              micStarted = true;
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                analyzer = audioContext.createAnalyser();
-                analyzer.fftSize = 2048;
-                const source = audioContext.createMediaStreamSource(stream);
-                source.connect(analyzer);
-                dataArray = new Uint8Array(analyzer.frequencyBinCount);
-                "Blow into your microphone to put out the candles!";
-              // Hide manual button since mic is working
-              if (manualButton) {
-                manualButton.style('opacity', '0');
-                setTimeout(() => { try { manualButton.hide(); } catch (e) {} }, 260);
-              }
-              console.log("Microphone initialized successfully");
-            } catch (err) {
-              console.error("p5.AudioIn init error:", err);
-                console.log("Microphone initialized successfully with Web Audio API");
-            }
-          })
-          .catch((err) => {
-            console.error("getUserMedia error:", err);
-            handleMicError();
-          });
-      } else {
-        console.error("getUserMedia not supported");
-        handleMicError();
-      }
-    }
+    
     function setup() {
       let canvas = createCanvas(500, 600);
       canvas.parent('canvas-container');
@@ -170,6 +126,10 @@
               
               micStarted = true;
               micBlocked = false;
+              // Some browsers (Chrome) require a user gesture to resume AudioContext
+              document.addEventListener('click', () => {
+                if (audioContext && audioContext.state === 'suspended') audioContext.resume();
+              }, { once: true });
               document.getElementById('instructions').textContent =
                 "Blow into your microphone to put out the candles!";
               // Hide manual button since mic is working
@@ -190,6 +150,61 @@
       } else {
         console.error("getUserMedia not supported");
         handleMicError();
+      }
+    }
+
+    // Create and position the Restart and Manual Blow buttons
+    function initializeButtons() {
+      try {
+        // Restart button (hidden until all out)
+        button = createButton('Restart');
+        button.addClass('ecard-button');
+        button.parent('canvas-container');
+        button.position((windowWidth / 2) - 40, windowHeight - 100);
+        button.style('opacity', '0');
+        button.hide();
+        button.mousePressed(restartFlames);
+
+        // Manual blow/fallback button
+        manualButton = createButton('🕯️ Blow (Manual)');
+        manualButton.addClass('ecard-button');
+        manualButton.parent('canvas-container');
+        manualButton.position((windowWidth / 2) - 80, windowHeight - 140);
+        manualButton.mousePressed(() => {
+          // simulate extinguish one candle
+          if (!allOut) {
+            if (flames[targetCandle]) {
+              flames[targetCandle] = false;
+              createSmoke(150 + targetCandle * 100, 180);
+              targetCandle++;
+              if (targetCandle >= flames.length) {
+                allOut = true;
+                celebrateAllOut();
+              }
+            }
+          }
+        });
+
+        // show manual button initially if mic not started
+        if (!micStarted) {
+          manualButton.style('opacity', '1');
+        } else {
+          manualButton.style('opacity', '0');
+          manualButton.hide();
+        }
+      } catch (e) {
+        console.warn('Button initialization failed', e);
+      }
+    }
+
+    function showManualExtinguishButton() {
+      try {
+        if (!manualButton) initializeButtons();
+        manualButton.show();
+        manualButton.style('opacity', '1');
+        manualButton.style('transform', 'translateX(-50%) translateY(0px) scale(1)');
+      } catch (e) {
+        console.warn('Unable to show manual button', e);
       }
     }
 
@@ -215,20 +230,36 @@
       // Normalize to 0-1 range
       return average / 255;
     }
-        confetti[i].display();
-        if (confetti[i].y > height || confetti[i].alpha <= 0) confetti.splice(i, 1);
+    function draw() {
+      // Clear background
+      background(30, 20, 60);
+
+      // Draw cake and candles
+      drawCake();
+
+      // Update and display confetti/smoke particles (iterate backwards when splicing)
+      for (let i = confetti.length - 1; i >= 0; i--) {
+        try {
+          confetti[i].update();
+          confetti[i].display();
+          if (confetti[i].y > height || confetti[i].alpha <= 0) confetti.splice(i, 1);
+        } catch (e) {
+          // Defensive: if a particle type was unexpected, remove it
+          confetti.splice(i, 1);
+        }
       }
 
-      // Only enable blowing if microphone is working
+      // Only enable blowing logic if microphone is working
       if (micStarted) {
         let vol = getMicLevel();
 
-        if (vol > 0.05) blowStrength = min(blowStrength + 0.1, 1);
-        else blowStrength = max(blowStrength - 0.05, 0);
+        // Gentle smoothing and thresholds to make blowing detection reliable
+        if (vol > 0.05) blowStrength = min(blowStrength + 0.05, 1);
+        else blowStrength = max(blowStrength - 0.03, 0);
 
-        if (blowStrength > 0.15) drawBlowIndicator();
+        if (blowStrength > 0.12) drawBlowIndicator();
 
-        if (blowStrength > 0.25 && !allOut) {
+        if (blowStrength > 0.28 && !allOut) {
           if (flames[targetCandle]) {
             flames[targetCandle] = false;
             createSmoke(150 + targetCandle * 100, 180);
@@ -240,6 +271,19 @@
           }
         }
       }
+
+      // Small HUD to show mic state for debugging
+      push();
+      noStroke();
+      fill(255);
+      textSize(12);
+      textAlign(LEFT, TOP);
+      let micText = `mic:${micStarted ? 'on' : 'off'} blocked:${micBlocked}`;
+      text(micText, 10, 10);
+      if (micStarted) {
+        text(`vol: ${nf(getMicLevel(), 1, 3)} blow:${nf(blowStrength, 1, 3)}`, 10, 26);
+      }
+      pop();
     }
 
     function drawCake() {
