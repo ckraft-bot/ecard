@@ -272,18 +272,7 @@
         }
       }
 
-      // Small HUD to show mic state for debugging
-      push();
-      noStroke();
-      fill(255);
-      textSize(12);
-      textAlign(LEFT, TOP);
-      let micText = `mic:${micStarted ? 'on' : 'off'} blocked:${micBlocked}`;
-      text(micText, 10, 10);
-      if (micStarted) {
-        text(`vol: ${nf(getMicLevel(), 1, 3)} blow:${nf(blowStrength, 1, 3)}`, 10, 26);
-      }
-      pop();
+      // (debug HUD removed)
     }
 
     function drawCake() {
