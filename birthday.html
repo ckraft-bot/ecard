@@ -1,3 +1,14 @@
+<!-- 
+Birthday Cake Interactive App
+
+- Displays a birthday cake with 3 candles.
+- Prompts for microphone access automatically.
+- Detects blowing into the microphone:
+    - When you blow (volume above threshold), the candles go out.
+- Includes a "Restart" button to reset the candles.
+- Uses p5.js for graphics and audio input.
+-->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,59 +17,58 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
 </head>
 <body>
-  <script>
-    // Request mic access immediately
-    async function requestPermissions() {
-      try {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-        console.log("Mic access granted");
-      } catch (err) {
-        console.warn("Mic access denied", err);
-      }
+<script>
+let mic, blowing = false, flames = [true, true, true], button;
+
+function setup() {
+  // create canvas
+  createCanvas(400, 400);
+
+  // initialize microphone and prompt automatically
+  mic = new p5.AudioIn();
+  mic.start(() => {
+    console.log("Mic started successfully");
+  }, (err) => {
+    console.error("Mic failed to start:", err);
+  });
+
+  // Restart button
+  button = createButton("Restart");
+  button.position(160, 360);
+  button.mousePressed(restartFlames);
+}
+
+function draw() {
+  background(255, 200, 220);
+  drawCake();
+
+  let vol = mic.getLevel(); // get microphone volume
+  if (vol > 0.1) blowing = true;
+
+  if (blowing) {
+    for (let i = 0; i < flames.length; i++) flames[i] = false;
+  }
+}
+
+function drawCake() {
+  fill(255, 180, 120);
+  rect(100, 250, 200, 100, 20);
+
+  for (let i = 0; i < 3; i++) {
+    let x = 150 + i * 50;
+    fill(100);
+    rect(x, 200, 10, 50);
+    if (flames[i]) {
+      fill(255, 150, 0);
+      ellipse(x + 5, 195, 15, 20);
     }
-    requestPermissions();
+  }
+}
 
-    let mic, blowing = false, flames = [true, true, true], button;
-
-    function setup() {
-      createCanvas(400, 400);
-      mic = new p5.AudioIn();
-      mic.start();
-      button = createButton("Restart");
-      button.position(160, 360);
-      button.mousePressed(restartFlames);
-    }
-
-    function draw() {
-      background(255, 200, 220);
-      drawCake();
-
-      let vol = mic.getLevel();
-      if (vol > 0.1) blowing = true;
-
-      if (blowing) {
-        for (let i = 0; i < flames.length; i++) flames[i] = false;
-      }
-    }
-
-    function drawCake() {
-      fill(255, 180, 120);
-      rect(100, 250, 200, 100, 20);
-      for (let i = 0; i < 3; i++) {
-        let x = 150 + i * 50;
-        fill(100);
-        rect(x, 200, 10, 50);
-        if (flames[i]) {
-          fill(255, 150, 0);
-          ellipse(x + 5, 195, 15, 20);
-        }
-      }
-    }
-
-    function restartFlames() {
-      flames = [true, true, true];
-      blowing = false;
-    }
-  </script>
+function restartFlames() {
+  flames = [true, true, true];
+  blowing = false;
+}
+</script>
 </body>
 </html>
