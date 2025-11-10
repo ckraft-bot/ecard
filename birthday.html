@@ -101,39 +101,47 @@
       // Initialize buttons
       initializeButtons();
 
-      // Try to start microphone - browser will automatically prompt for permission
-      try {
-        mic = new p5.AudioIn();
-        mic.start(
-          () => {
-            console.log("Microphone started successfully");
-            micStarted = true;
-            micBlocked = false;
-            document.getElementById('instructions').textContent =
-              "Blow into your microphone to put out the candles!";
-            // Hide manual button since mic is working
-            if (manualButton) {
-              manualButton.style('opacity', '0');
-              setTimeout(() => { try { manualButton.hide(); } catch (e) {} }, 260);
+      // Request microphone access
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices
+          .getUserMedia({ audio: true })
+          .then((stream) => {
+            console.log("Microphone permission granted");
+            // Initialize p5.AudioIn now that we have permission
+            try {
+              mic = new p5.AudioIn();
+              mic.start();
+              micStarted = true;
+              micBlocked = false;
+              document.getElementById('instructions').textContent =
+                "Blow into your microphone to put out the candles!";
+              // Hide manual button since mic is working
+              if (manualButton) {
+                manualButton.style('opacity', '0');
+                setTimeout(() => { try { manualButton.hide(); } catch (e) {} }, 260);
+              }
+              console.log("Microphone initialized successfully");
+            } catch (err) {
+              console.error("p5.AudioIn init error:", err);
+              handleMicError();
             }
-          },
-          () => {
-            console.warn("Microphone permission denied");
-            micBlocked = true;
-            micStarted = false;
-            document.getElementById('instructions').textContent =
-              "Microphone blocked. Click the 'Blow' button below.";
-            showManualExtinguishButton();
-          }
-        );
-      } catch (err) {
-        console.error("Mic init error:", err);
-        micBlocked = true;
-        micStarted = false;
-        document.getElementById('instructions').textContent =
-          "Microphone unavailable. Click the 'Blow' button below.";
-        showManualExtinguishButton();
+          })
+          .catch((err) => {
+            console.error("getUserMedia error:", err);
+            handleMicError();
+          });
+      } else {
+        console.error("getUserMedia not supported");
+        handleMicError();
       }
+    }
+
+    function handleMicError() {
+      micBlocked = true;
+      micStarted = false;
+      document.getElementById('instructions').textContent =
+        "Microphone unavailable. Click the 'Blow' button below.";
+      showManualExtinguishButton();
     }
 
     function showManualExtinguishButton() {
