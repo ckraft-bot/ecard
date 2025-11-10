@@ -87,6 +87,9 @@
   let micStarted = false;
   let micBlocked = false;
   let manualButton;
+  let audioContext;
+  let analyzer;
+  let dataArray;
     let flames = [true, true, true];
     let button;
     let confetti = [];
@@ -135,6 +138,56 @@
         handleMicError();
       }
     }
+    function setup() {
+      let canvas = createCanvas(500, 600);
+      canvas.parent('canvas-container');
+
+      // Initialize buttons
+      initializeButtons();
+
+      // Request microphone access using Web Audio API
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices
+          .getUserMedia({ audio: true })
+          .then((stream) => {
+            console.log("Microphone permission granted");
+            try {
+              // Create audio context
+              audioContext = new (window.AudioContext || window.webkitAudioContext)();
+              analyzer = audioContext.createAnalyser();
+              analyzer.fftSize = 2048;
+              
+              // Connect the microphone stream to the analyzer
+              const source = audioContext.createMediaStreamSource(stream);
+              source.connect(analyzer);
+              
+              // Create data array for frequency data
+              dataArray = new Uint8Array(analyzer.frequencyBinCount);
+              
+              micStarted = true;
+              micBlocked = false;
+              document.getElementById('instructions').textContent =
+                "Blow into your microphone to put out the candles!";
+              // Hide manual button since mic is working
+              if (manualButton) {
+                manualButton.style('opacity', '0');
+                setTimeout(() => { try { manualButton.hide(); } catch (e) {} }, 260);
+              }
+              console.log("Microphone initialized successfully with Web Audio API");
+            } catch (err) {
+              console.error("Audio setup error:", err);
+              handleMicError();
+            }
+          })
+          .catch((err) => {
+            console.error("getUserMedia error:", err);
+            handleMicError();
+          });
+      } else {
+        console.error("getUserMedia not supported");
+        handleMicError();
+      }
+    }
 
     function handleMicError() {
       micBlocked = true;
@@ -144,70 +197,20 @@
       showManualExtinguishButton();
     }
 
-    function showManualExtinguishButton() {
-      if (manualButton) {
-        manualButton.show();
-        setTimeout(() => {
-          manualButton.style('opacity', '1');
-          manualButton.style('transform', 'translateX(-50%) translateY(0) scale(1)');
-        }, 20);
+    function getMicLevel() {
+      if (!analyzer || !dataArray) return 0;
+      analyzer.getByteFrequencyData(dataArray);
+      
+      // Calculate average frequency data (represents volume)
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        sum += dataArray[i];
       }
+      let average = sum / dataArray.length;
+      
+      // Normalize to 0-1 range
+      return average / 255;
     }
-
-    function initializeButtons() {
-      // Restart button
-      button = createButton("🔄 Light Candles Again");
-      // Centered restart button (hidden until celebration)
-      button.mousePressed(restartFlames);
-      button.addClass('ecard-button');
-      // place near bottom center
-      button.style('bottom', '30px');
-      button.style('transform', 'translateX(-50%) scale(0.96)');
-      button.style('opacity', '0');
-      // hide initially; will be shown after celebration and animated in
-      button.hide();
-
-      // Manual extinguish button (fallback when mic is blocked)
-      manualButton = createButton("🕯️ Extinguish Candles");
-      manualButton.mousePressed(manualExtinguish);
-      manualButton.addClass('ecard-button');
-      // position slightly above the restart button
-      manualButton.style('bottom', '90px');
-      // start slightly offset/transparent for entrance animation
-      manualButton.style('transform', 'translateX(-50%) translateY(8px) scale(0.98)');
-      manualButton.style('opacity', '0');
-      manualButton.hide();
-    }
-
-    // Manual extinguish sequence for when microphone isn't available
-    function manualExtinguish() {
-      if (allOut) return;
-      // Disable the button immediately to prevent repeated clicks
-      try { manualButton.attribute('disabled', ''); } catch (e) {}
-      let delay = 0;
-      for (let i = 0; i < flames.length; i++) {
-        setTimeout(() => {
-          if (flames[i]) {
-            flames[i] = false;
-            createSmoke(150 + i * 100, 180);
-          }
-          // After last candle, celebrate
-          if (i === flames.length - 1) {
-            allOut = true;
-            celebrateAllOut();
-          }
-        }, delay);
-        delay += 700; // stagger extinguish timing
-      }
-    }
-
-    function draw() {
-      background(135, 206, 250);
-      drawCake();
-
-      // Update confetti/smoke
-      for (let i = confetti.length - 1; i >= 0; i--) {
-        confetti[i].update();
         confetti[i].display();
         if (confetti[i].y > height || confetti[i].alpha <= 0) confetti.splice(i, 1);
       }
