@@ -1,73 +1,353 @@
-<!-- 
-Birthday Cake Interactive App
-
-- Displays a birthday cake with 3 candles.
-- Prompts for microphone access automatically.
-- Detects blowing into the microphone:
-    - When you blow (volume above threshold), the candles go out.
-- Includes a "Restart" button to reset the candles.
-- Uses p5.js for graphics and audio input.
--->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Birthday Cake</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Happy Birthday Claire! 🎂</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    
+    #canvas-container {
+      position: relative;
+    }
+    
+    .message {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      font-size: 2rem;
+      font-weight: bold;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+      opacity: 0;
+      transition: opacity 0.5s;
+      text-align: center;
+      width: 100%;
+    }
+    
+    .message.show {
+      opacity: 1;
+    }
+    
+    .instructions {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      font-size: 1rem;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(10px);
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+  </style>
 </head>
 <body>
+  <div id="canvas-container">
+    <div class="message" id="message">🎉 Happy Birthday! 🎉</div>
+    <div class="instructions" id="instructions">Blow into your microphone to put out the candles!</div>
+  </div>
+
 <script>
-let mic, blowing = false, flames = [true, true, true], button;
+let mic;
+let flames = [true, true, true];
+let button;
+let confetti = [];
+let allOut = false;
+let blowStrength = 0;
+let targetCandle = 0;
+let micStarted = false;
 
 function setup() {
-  // create canvas
-  createCanvas(400, 400);
-
-  // initialize microphone and prompt automatically
+  let canvas = createCanvas(500, 600);
+  canvas.parent('canvas-container');
+  
+  // Initialize microphone
   mic = new p5.AudioIn();
   mic.start(() => {
-    console.log("Mic started successfully");
+    console.log("Microphone started successfully");
+    micStarted = true;
   }, (err) => {
-    console.error("Mic failed to start:", err);
+    console.error("Microphone failed to start:", err);
+    document.getElementById('instructions').textContent = 
+      "Unable to access microphone. Please allow microphone access!";
   });
 
   // Restart button
-  button = createButton("Restart");
-  button.position(160, 360);
+  button = createButton("🔄 Light Candles Again");
+  button.position(width/2 - 80, height - 60);
   button.mousePressed(restartFlames);
+  button.style('padding', '12px 24px');
+  button.style('font-size', '16px');
+  button.style('background', 'rgba(255, 255, 255, 0.9)');
+  button.style('border', 'none');
+  button.style('border-radius', '25px');
+  button.style('cursor', 'pointer');
+  button.style('font-weight', 'bold');
+  button.style('color', '#667eea');
+  button.style('box-shadow', '0 4px 15px rgba(0,0,0,0.2)');
+  button.hide();
 }
 
 function draw() {
-  background(255, 200, 220);
+  background(135, 206, 250);
+  
+  // Draw confetti
+  for (let i = confetti.length - 1; i >= 0; i--) {
+    confetti[i].update();
+    confetti[i].display();
+    if (confetti[i].y > height) {
+      confetti.splice(i, 1);
+    }
+  }
+  
   drawCake();
-
-  let vol = mic.getLevel(); // get microphone volume
-  if (vol > 0.1) blowing = true;
-
-  if (blowing) {
-    for (let i = 0; i < flames.length; i++) flames[i] = false;
+  
+  if (micStarted) {
+    let vol = mic.getLevel();
+    
+    // Smooth blowing detection
+    if (vol > 0.15) {
+      blowStrength = min(blowStrength + 0.1, 1);
+    } else {
+      blowStrength = max(blowStrength - 0.05, 0);
+    }
+    
+    // Show blow indicator
+    if (blowStrength > 0.3) {
+      drawBlowIndicator();
+    }
+    
+    // Blow out candles one by one
+    if (blowStrength > 0.5 && !allOut) {
+      if (flames[targetCandle]) {
+        flames[targetCandle] = false;
+        createSmoke(150 + targetCandle * 100, 180);
+        targetCandle++;
+        
+        // Check if all candles are out
+        if (targetCandle >= flames.length) {
+          allOut = true;
+          celebrateAllOut();
+        }
+      }
+    }
   }
 }
 
 function drawCake() {
-  fill(255, 180, 120);
-  rect(100, 250, 200, 100, 20);
-
+  push();
+  
+  // Cake shadow
+  fill(0, 0, 0, 30);
+  ellipse(250, 450, 280, 40);
+  
+  // Bottom layer
+  fill(255, 200, 220);
+  stroke(200, 150, 180);
+  strokeWeight(3);
+  rect(100, 350, 300, 80, 10);
+  
+  // Frosting waves
+  noStroke();
+  fill(255, 220, 240);
+  for (let i = 0; i < 6; i++) {
+    ellipse(125 + i * 50, 350, 60, 30);
+  }
+  
+  // Top layer
+  fill(255, 180, 200);
+  stroke(200, 130, 160);
+  strokeWeight(3);
+  rect(125, 280, 250, 70, 10);
+  
+  // Frosting on top
+  noStroke();
+  fill(255, 210, 230);
+  for (let i = 0; i < 5; i++) {
+    ellipse(150 + i * 50, 280, 60, 30);
+  }
+  
+  // Decorative sprinkles
+  for (let i = 0; i < 30; i++) {
+    fill(random(255), random(255), random(255));
+    let x = 130 + random(240);
+    let y = 290 + random(50);
+    ellipse(x, y, 4, 8);
+  }
+  
+  pop();
+  
+  // Draw candles
   for (let i = 0; i < 3; i++) {
-    let x = 150 + i * 50;
-    fill(100);
-    rect(x, 200, 10, 50);
-    if (flames[i]) {
-      fill(255, 150, 0);
-      ellipse(x + 5, 195, 15, 20);
-    }
+    drawCandle(150 + i * 100, 220, flames[i]);
+  }
+}
+
+function drawCandle(x, y, isLit) {
+  push();
+  
+  // Candle body with stripes
+  fill(255, 100, 100);
+  stroke(200, 80, 80);
+  strokeWeight(2);
+  rect(x - 8, y, 16, 60, 5);
+  
+  // Stripes
+  stroke(255, 150, 150);
+  for (let i = 0; i < 3; i++) {
+    line(x - 8, y + 15 + i * 15, x + 8, y + 15 + i * 15);
+  }
+  
+  // Wick
+  stroke(50);
+  strokeWeight(2);
+  line(x, y - 5, x, y + 5);
+  
+  // Flame
+  if (isLit) {
+    noStroke();
+    
+    // Outer flame (orange)
+    fill(255, 150, 0, 200);
+    ellipse(x, y - 10 + sin(frameCount * 0.1 + x) * 2, 20, 28);
+    
+    // Inner flame (yellow)
+    fill(255, 220, 0, 220);
+    ellipse(x, y - 8 + sin(frameCount * 0.1 + x) * 2, 12, 20);
+    
+    // Core flame (white)
+    fill(255, 255, 200, 250);
+    ellipse(x, y - 6 + sin(frameCount * 0.1 + x) * 2, 6, 12);
+    
+    // Glow effect
+    fill(255, 200, 0, 30);
+    ellipse(x, y - 10, 40, 45);
+  }
+  
+  pop();
+}
+
+function drawBlowIndicator() {
+  push();
+  noStroke();
+  fill(200, 230, 255, 100 + blowStrength * 100);
+  
+  for (let i = 0; i < 3; i++) {
+    let size = 30 + i * 20 + blowStrength * 30;
+    ellipse(250, 150, size, size * 0.6);
+  }
+  
+  // Wind lines
+  stroke(255, 255, 255, 150);
+  strokeWeight(2);
+  for (let i = 0; i < 5; i++) {
+    let x = 250 + (frameCount * 3 + i * 30) % 150;
+    line(x - 20, 140 + i * 10, x, 140 + i * 10);
+  }
+  
+  pop();
+}
+
+function createSmoke(x, y) {
+  for (let i = 0; i < 10; i++) {
+    confetti.push(new Smoke(x, y));
+  }
+}
+
+function celebrateAllOut() {
+  // Show message
+  document.getElementById('message').classList.add('show');
+  document.getElementById('instructions').style.display = 'none';
+  button.show();
+  
+  // Create confetti explosion
+  for (let i = 0; i < 100; i++) {
+    confetti.push(new Confetti(width/2, height/2));
   }
 }
 
 function restartFlames() {
   flames = [true, true, true];
-  blowing = false;
+  allOut = false;
+  targetCandle = 0;
+  blowStrength = 0;
+  confetti = [];
+  document.getElementById('message').classList.remove('show');
+  document.getElementById('instructions').style.display = 'block';
+  button.hide();
+}
+
+class Confetti {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.vx = random(-5, 5);
+    this.vy = random(-8, -3);
+    this.size = random(5, 12);
+    this.color = color(random(255), random(255), random(255));
+    this.rotation = random(TWO_PI);
+    this.rotationSpeed = random(-0.2, 0.2);
+  }
+  
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    this.vy += 0.2;
+    this.rotation += this.rotationSpeed;
+  }
+  
+  display() {
+    push();
+    translate(this.x, this.y);
+    rotate(this.rotation);
+    fill(this.color);
+    noStroke();
+    rectMode(CENTER);
+    rect(0, 0, this.size, this.size);
+    pop();
+  }
+}
+
+class Smoke {
+  constructor(x, y) {
+    this.x = x + random(-5, 5);
+    this.y = y;
+    this.vx = random(-0.5, 0.5);
+    this.vy = random(-2, -1);
+    this.size = random(5, 10);
+    this.alpha = 200;
+  }
+  
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    this.alpha -= 5;
+    this.size += 0.5;
+  }
+  
+  display() {
+    push();
+    noStroke();
+    fill(150, 150, 150, this.alpha);
+    ellipse(this.x, this.y, this.size);
+    pop();
+  }
 }
 </script>
 </body>

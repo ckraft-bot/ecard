@@ -1,93 +1,409 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <title>Eye Contact Confetti</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.3/dist/face-landmarks-detection.min.js"></script>
-  </head>
-  <body>
-    <script>
-      let video, model, faces = [], confetti = [], triggered = false, button;
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Congratulations! 🎉</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.3/dist/face-landmarks-detection.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    
+    #canvas-container {
+      position: relative;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    
+    .overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+    }
+    
+    .message-box {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.75);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 20px 40px;
+      border-radius: 15px;
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+      transition: all 0.3s ease;
+    }
+    
+    .message-box h1 {
+      margin: 0;
+      font-size: 2.5rem;
+      color: #667eea;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .message-box p {
+      margin: 10px 0 0 0;
+      font-size: 1.1rem;
+      color: #555;
+    }
+    
+    .loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(10px);
+      padding: 30px 50px;
+      border-radius: 20px;
+      text-align: center;
+      font-size: 1.5rem;
+      color: #667eea;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    
+    .spinner {
+      border: 4px solid rgba(102, 126, 234, 0.3);
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .instructions {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.75);
+      backdrop-filter: blur(10px);
+      padding: 15px 30px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #555;
+      text-align: center;
+      font-size: 1rem;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    }
+    
+    .eye-indicator {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 4rem;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); }
+      50% { transform: translate(-50%, -50%) scale(1.2); }
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container">
+    <div class="loading" id="loading">
+      <div>Loading face detection...</div>
+      <div class="spinner"></div>
+    </div>
+  </div>
 
-      async function setup() {
-        createCanvas(400, 400);
+<script>
+let video, model, faces = [], confetti = [], triggered = false, button;
+let modelLoaded = false;
+let eyeContactFrames = 0;
+const REQUIRED_FRAMES = 15; // Need to look at camera for ~1.5 seconds
+let celebrationStarted = false;
+let confettiDuration = 0;
 
-        // Request front camera automatically
-        const constraints = { video: { facingMode: "user" } };
-        video = createCapture(constraints);
-        video.size(width, height);
-        video.hide();
+async function setup() {
+  let canvas = createCanvas(640, 480);
+  canvas.parent('canvas-container');
 
-        textAlign(CENTER);
-        textSize(32);
+  // Request front camera
+  const constraints = { 
+    video: { 
+      facingMode: "user",
+      width: 640,
+      height: 480
+    } 
+  };
+  
+  video = createCapture(constraints);
+  video.size(width, height);
+  video.hide();
 
-        // Load face landmarks model
-        model = await faceLandmarksDetection.load(
-          faceLandmarksDetection.SupportedPackages.mediapipeFacemesh
-        );
+  // Load face landmarks model
+  try {
+    model = await faceLandmarksDetection.load(
+      faceLandmarksDetection.SupportedPackages.mediapipeFacemesh,
+      { maxFaces: 1 }
+    );
+    modelLoaded = true;
+    document.getElementById('loading').style.display = 'none';
+    
+    // Create UI elements
+    createUI();
+    detectFace();
+  } catch (error) {
+    console.error("Error loading model:", error);
+    document.getElementById('loading').innerHTML = 
+      '<div style="color: #ff4444;">Failed to load face detection.<br>Please refresh the page.</div>';
+  }
+}
 
-        detectFace();
+function createUI() {
+  // Message box
+  let messageBox = createElement('div');
+  messageBox.class('message-box');
+  messageBox.id('message-box');
+  messageBox.parent('canvas-container');
+  messageBox.html('<h1>👀 Look at the camera!</h1><p>Make eye contact to celebrate</p>');
+  
+  // Instructions
+  let instructions = createElement('div');
+  instructions.class('instructions');
+  instructions.id('instructions');
+  instructions.parent('canvas-container');
+  instructions.html('Position your face in frame and look directly at the camera');
+  
+  // Restart button
+  button = createButton("🔄 Celebrate Again");
+  button.position(width/2 - 90, height - 80);
+  button.style('padding', '12px 28px');
+  button.style('font-size', '16px');
+  button.style('background', 'rgba(255, 255, 255, 0.9)');
+  button.style('border', 'none');
+  button.style('border-radius', '25px');
+  button.style('cursor', 'pointer');
+  button.style('font-weight', 'bold');
+  button.style('color', '#667eea');
+  button.style('box-shadow', '0 4px 15px rgba(0,0,0,0.2)');
+  button.style('pointer-events', 'auto');
+  button.mousePressed(restart);
+  button.hide();
+}
 
-        button = createButton("Restart");
-        button.position(160, 360);
-        button.mousePressed(restart);
+async function detectFace() {
+  if (!modelLoaded) return;
+  
+  try {
+    const predictions = await model.estimateFaces({ input: video.elt });
+    faces = predictions;
+  } catch (error) {
+    console.error("Detection error:", error);
+  }
+  
+  setTimeout(detectFace, 100);
+}
+
+function draw() {
+  if (!modelLoaded) return;
+  
+  // Draw mirrored video
+  push();
+  translate(width, 0);
+  scale(-1, 1);
+  image(video, 0, 0, width, height);
+  pop();
+  
+  // Check for eye contact
+  if (faces.length > 0 && !triggered) {
+    let face = faces[0];
+    
+    if (checkEyeContact(face)) {
+      eyeContactFrames++;
+      
+      // Draw progress indicator
+      drawEyeContactProgress();
+      
+      if (eyeContactFrames >= REQUIRED_FRAMES) {
+        triggerCelebration();
       }
-
-      async function detectFace() {
-        const predictions = await model.estimateFaces({ input: video.elt });
-        faces = predictions;
-        setTimeout(detectFace, 100);
+    } else {
+      eyeContactFrames = max(0, eyeContactFrames - 2);
+    }
+  }
+  
+  // Draw confetti
+  if (triggered) {
+    confettiDuration++;
+    
+    for (let i = confetti.length - 1; i >= 0; i--) {
+      confetti[i].update();
+      confetti[i].display();
+      
+      // Remove confetti that's out of bounds or after 10 seconds
+      if (confetti[i].y > height + 50 || confettiDuration > 600) {
+        confetti.splice(i, 1);
       }
+    }
+    
+    // Show restart button after confetti settles
+    if (confetti.length === 0 && confettiDuration > 100) {
+      button.show();
+    }
+  }
+}
 
-      function draw() {
-        image(video, 0, 0, width, height);
-        fill(255, 255, 255, 180);
-        rect(0, 0, width, 60);
-        fill(0);
+function checkEyeContact(face) {
+  // Get eye landmarks (simplified detection)
+  const mesh = face.scaledMesh;
+  
+  // Left eye indices: 133, 33
+  // Right eye indices: 362, 263
+  const leftEye = mesh[133];
+  const rightEye = mesh[362];
+  const noseTip = mesh[1];
+  
+  // Calculate if eyes are open and facing camera
+  const leftEyeY = leftEye[1];
+  const rightEyeY = rightEye[1];
+  const eyeLevel = (leftEyeY + rightEyeY) / 2;
+  
+  // Check if face is relatively frontal (eyes should be roughly level)
+  const eyeLevelDiff = abs(leftEyeY - rightEyeY);
+  
+  // Face should be centered and frontal
+  return eyeLevelDiff < 20;
+}
 
-        if (faces.length > 0 && !triggered) {
-          triggered = true;
-          for (let i = 0; i < 200; i++) {
-            confetti.push({
-              x: random(width),
-              y: random(-50, 0),
-              speed: random(2, 6),
-              color: color(random(255), random(255), random(255))
-            });
-          }
-        }
+function drawEyeContactProgress() {
+  let progress = eyeContactFrames / REQUIRED_FRAMES;
+  
+  // Draw progress circle
+  push();
+  translate(width / 2, height / 2);
+  
+  noFill();
+  strokeWeight(8);
+  
+  // Background circle
+  stroke(255, 255, 255, 100);
+  ellipse(0, 0, 100, 100);
+  
+  // Progress arc
+  stroke(102, 126, 234);
+  arc(0, 0, 100, 100, -HALF_PI, -HALF_PI + TWO_PI * progress);
+  
+  // Eye icon
+  fill(255);
+  textSize(40);
+  textAlign(CENTER, CENTER);
+  text('👁️', 0, 0);
+  
+  pop();
+}
 
-        if (triggered) {
-          text("Congratulations!", width / 2, 40);
-          for (let c of confetti) {
-            fill(c.color);
-            rect(c.x, c.y, 6, 10);
-            c.y += c.speed;
-            if (c.y > height) c.y = random(-50, 0); // recycle confetti
-          }
-        } else {
-          text("Make Eye Contact!", width / 2, 40);
-        }
+function triggerCelebration() {
+  triggered = true;
+  celebrationStarted = true;
+  
+  // Update message
+  let messageBox = document.getElementById('message-box');
+  messageBox.innerHTML = '<h1>🎉 Congratulations! 🎉</h1><p>You did it! Amazing work!</p>';
+  
+  // Hide instructions
+  document.getElementById('instructions').style.display = 'none';
+  
+  // Create confetti explosion
+  for (let i = 0; i < 150; i++) {
+    confetti.push(new Confetti(width / 2, height / 2));
+  }
+  
+  // Add more confetti from top
+  for (let i = 0; i < 100; i++) {
+    confetti.push(new Confetti(random(width), -random(50)));
+  }
+}
 
-        drawLandmarks();
-      }
+function restart() {
+  triggered = false;
+  celebrationStarted = false;
+  confetti = [];
+  eyeContactFrames = 0;
+  confettiDuration = 0;
+  button.hide();
+  
+  // Reset message
+  let messageBox = document.getElementById('message-box');
+  messageBox.innerHTML = '<h1>👀 Look at the camera!</h1><p>Make eye contact to celebrate</p>';
+  
+  // Show instructions
+  document.getElementById('instructions').style.display = 'block';
+}
 
-      function drawLandmarks() {
-        noFill();
-        stroke(0, 255, 0);
-        for (let face of faces) {
-          for (let [x, y] of face.scaledMesh) {
-            ellipse(x, y, 2, 2);
-          }
-        }
-      }
-
-      function restart() {
-        triggered = false;
-        confetti = [];
-      }
-    </script>
-  </body>
+class Confetti {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.vx = random(-6, 6);
+    this.vy = random(-10, -3);
+    this.size = random(8, 15);
+    this.color = color(random(255), random(255), random(255));
+    this.rotation = random(TWO_PI);
+    this.rotationSpeed = random(-0.3, 0.3);
+    this.gravity = 0.3;
+    this.shape = random(['rect', 'ellipse', 'triangle']);
+  }
+  
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    this.vy += this.gravity;
+    this.rotation += this.rotationSpeed;
+    this.vx *= 0.99; // Air resistance
+  }
+  
+  display() {
+    push();
+    translate(this.x, this.y);
+    rotate(this.rotation);
+    fill(this.color);
+    noStroke();
+    
+    if (this.shape === 'rect') {
+      rectMode(CENTER);
+      rect(0, 0, this.size, this.size);
+    } else if (this.shape === 'ellipse') {
+      ellipse(0, 0, this.size, this.size);
+    } else {
+      triangle(
+        0, -this.size / 2,
+        -this.size / 2, this.size / 2,
+        this.size / 2, this.size / 2
+      );
+    }
+    
+    pop();
+  }
+}
+</script>
+</body>
 </html>
