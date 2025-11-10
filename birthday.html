@@ -78,7 +78,7 @@
 </head>
 <body>
   <div id="canvas-container">
-  <div class="message" id="message">🎉 Happy Birthday Claire! 🎉</div>
+  <div class="message" id="message"> Happy Birthday Claire!</div>
     <div class="instructions" id="instructions">Blow into your microphone to put out the candles!</div>
   </div>
 
@@ -105,51 +105,55 @@
     function requestMicrophoneAccess() {
       // Show a friendly prompt before requesting mic
       const userConfirmed = confirm(
-        "This page would like to use your microphone to detect when you blow out the candles. Allow microphone access?"
+        "This page would like to use your microphone. Allow microphone access?"
       );
 
       // Initialize buttons first
       initializeButtons();
 
       if (userConfirmed) {
-        // Try to start microphone
-        try {
-          mic = new p5.AudioIn();
-          mic.start(
-            () => {
-              console.log("Microphone started");
-              micStarted = true;
-              micBlocked = false;
-              document.getElementById('instructions').textContent =
-                "Blow into your microphone to put out the candles!";
-              // Hide manual button since mic is working
-              if (manualButton) {
-                manualButton.style('opacity', '0');
-                setTimeout(() => { try { manualButton.hide(); } catch (e) {} }, 260);
-              }
-            },
-            () => {
-              console.warn("Microphone permission denied");
+        // Request microphone access using getUserMedia
+        navigator.mediaDevices
+          .getUserMedia({ audio: true })
+          .then((stream) => {
+            console.log("getUserMedia successful, now initializing p5.AudioIn");
+            // Now try to initialize p5.AudioIn after we have permission
+            try {
+              mic = new p5.AudioIn();
+              mic.start(() => {
+                console.log("Microphone started successfully");
+                micStarted = true;
+                micBlocked = false;
+                document.getElementById('instructions').textContent =
+                  "Blow into your microphone to put out the candles!";
+                // Hide manual button since mic is working
+                if (manualButton) {
+                  manualButton.style('opacity', '0');
+                  setTimeout(() => { try { manualButton.hide(); } catch (e) {} }, 260);
+                }
+              });
+            } catch (err) {
+              console.error("p5.AudioIn init error:", err);
               micBlocked = true;
               micStarted = false;
               document.getElementById('instructions').textContent =
-                "Microphone blocked. Click the 'Extinguish' button below.";
+                "Microphone error. Click the 'Blow' button below.";
               showManualExtinguishButton();
             }
-          );
-        } catch (err) {
-          console.error("Mic init error:", err);
-          micBlocked = true;
-          micStarted = false;
-          document.getElementById('instructions').textContent =
-            "Microphone unavailable. Click the 'Extinguish' button below.";
-          showManualExtinguishButton();
-        }
+          })
+          .catch((err) => {
+            console.error("getUserMedia error:", err);
+            micBlocked = true;
+            micStarted = false;
+            document.getElementById('instructions').textContent =
+              "Microphone blocked. Click the 'Blow' button below.";
+            showManualExtinguishButton();
+          });
       } else {
         // User denied permission
         micBlocked = true;
         document.getElementById('instructions').textContent =
-          "Microphone permission denied. Click the 'Extinguish' button below.";
+          "Microphone permission denied. Click the 'Blow' button below.";
         showManualExtinguishButton();
       }
     }
