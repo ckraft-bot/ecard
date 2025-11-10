@@ -1,120 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Celebration</title>
-
-    <!-- p5.js for visuals -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
-
-    <!-- TensorFlow.js + Face Landmarks Model -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.3/dist/face-landmarks-detection.min.js"></script>
-
-    <style>
-      body {
-        margin: 0;
-        background: #e6f0ff;
-        overflow: hidden;
-      }
-      canvas {
-        display: block;
-        margin: 0 auto;
-      }
-      button {
-        position: absolute;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        padding: 10px 20px;
-        font-size: 16px;
-        border: none;
-        border-radius: 8px;
-        background-color: #3366ff;
-        color: white;
-        cursor: pointer;
-      }
-      button:hover {
-        background-color: #2244bb;
-      }
-    </style>
-  </head>
-  <body>
-    <script>
-      let video, model, faces = [];
-      let confetti = [], triggered = false;
-      let button;
-
-      async function setup() {
-        createCanvas(400, 400);
-        video = createCapture(VIDEO);
-        video.size(width, height);
-        video.hide();
-
-        textAlign(CENTER);
-        textSize(32);
-        fill(0);
-
-        model = await faceLandmarksDetection.load(
-          faceLandmarksDetection.SupportedPackages.mediapipeFacemesh
-        );
-
-        detectFace();
-
-        button = createButton("Restart");
-        button.mousePressed(restart);
-      }
-
-      async function detectFace() {
-        const predictions = await model.estimateFaces({ input: video.elt });
-        faces = predictions;
-        setTimeout(detectFace, 100);
-      }
-
-      function draw() {
-        image(video, 0, 0, width, height);
-
-        // detect eye contact (face visible)
-        if (faces.length > 0 && !triggered) {
-          triggered = true;
-          for (let i = 0; i < 200; i++) {
-            confetti.push({
-              x: random(width),
-              y: random(-50, 0),
-              speed: random(2, 6),
-              color: color(random(255), random(255), random(255))
-            });
-          }
-        }
-
-        fill(255);
-        rect(0, 0, width, 60);
-        fill(0);
-        if (triggered) {
-          text("Congratulations!", width / 2, 40);
-          drawConfetti();
-        } else {
-          text("Make Eye Contact!", width / 2, 40);
-        }
-      }
-
-      function drawConfetti() {
-        for (let c of confetti) {
-          fill(c.color);
-          rect(c.x, c.y, 6, 10);
-          c.y += c.speed;
-          if (c.y > height) {
-            c.y = random(-50, 0);
-            c.x = random(width);
-          }
-        }
-      }
-
-      function restart() {
-        triggered = false;
-        confetti = [];
-      }
-    </script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <title>Interactive Apps</title>
+  <style>
+    body { font-family: sans-serif; background: #f0f0f0; text-align: center; padding-top: 50px; }
+    a { display: block; margin: 20px; font-size: 24px; text-decoration: none; color: #3366ff; }
+    a:hover { color: #2244bb; }
+  </style>
+</head>
+<body>
+  <h1>Interactive Experiences</h1>
+  <a href="birthday.html">🎂 Birthday</a>
+  <a href="congratulations.html">🎉 Congratulations</a>
+  <a href="greetings.html">👋 Greetings</a>
+</body>
 </html>
