@@ -1,1 +1,72 @@
+<!-- 
+Captures video feed.
 
+Loads TensorFlow HandPose model.
+
+When a hand is detected, shows “Greetings!” message.
+
+Dots mark hand landmarks. 
+-->
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose@0.0.8/dist/handpose.min.js"></script>
+  </head>
+  <body>
+    <script>
+      let video, model, predictions = [], greeting = false, button;
+
+      async function setup() {
+        createCanvas(400, 400);
+        video = createCapture(VIDEO);
+        video.size(width, height);
+        video.hide();
+
+        model = await handpose.load();
+        detectHands();
+        textAlign(CENTER);
+        textSize(32);
+        button = createButton("Restart");
+        button.position(160, 360);
+        button.mousePressed(() => greeting = false);
+      }
+
+      async function detectHands() {
+        const hands = await model.estimateHands(video.elt);
+        predictions = hands;
+        setTimeout(detectHands, 100); // repeat detection
+      }
+
+      function draw() {
+        image(video, 0, 0, width, height);
+        fill(255, 255, 255, 180);
+        noStroke();
+        rect(0, 0, width, 60);
+
+        if (predictions.length > 0) greeting = true;
+
+        fill(0);
+        if (greeting) text("Greetings!", width / 2, 40);
+        else text("Wave to Say Hello!", width / 2, 40);
+
+        drawKeypoints();
+      }
+
+      function drawKeypoints() {
+        for (let i = 0; i < predictions.length; i++) {
+          const keypoints = predictions[i].landmarks;
+          for (let j = 0; j < keypoints.length; j++) {
+            const [x, y] = keypoints[j];
+            fill(0, 255, 0);
+            noStroke();
+            ellipse(x, y, 8, 8);
+          }
+        }
+      }
+    </script>
+  </body>
+</html>
