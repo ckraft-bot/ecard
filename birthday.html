@@ -55,17 +55,38 @@
       border-radius: 10px;
       border: 1px solid rgba(255, 255, 255, 0.3);
     }
+
+    /* Shared button style for nicer visuals + subtle animation */
+    .ecard-button {
+      position: absolute;
+      left: 50%;
+      transform-origin: center;
+      transition: opacity 260ms cubic-bezier(.2,.8,.2,1), transform 260ms cubic-bezier(.2,.8,.2,1);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+      border: none;
+      padding: 12px 20px;
+      border-radius: 22px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #667eea;
+      background: rgba(255,255,255,0.96);
+      cursor: pointer;
+      opacity: 0;
+      will-change: opacity, transform;
+    }
   </style>
 </head>
 <body>
   <div id="canvas-container">
-    <div class="message" id="message">🎉 Happy Birthday! 🎉</div>
+  <div class="message" id="message">🎉 Happy Birthday Claire! 🎉</div>
     <div class="instructions" id="instructions">Blow into your microphone to put out the candles!</div>
   </div>
 
   <script>
-    let mic;
-    let micStarted = false;
+  let mic;
+  let micStarted = false;
+  let micBlocked = false;
+  let manualButton;
     let flames = [true, true, true];
     let button;
     let confetti = [];
@@ -87,30 +108,71 @@
           },
           () => {
             console.warn("Microphone permission denied");
+            micBlocked = true;
             document.getElementById('instructions').textContent =
-              "Microphone blocked. Candles will stay lit.";
+              "Microphone blocked. Click the 'Extinguish' button below.";
           }
         );
       } catch (err) {
         console.error("Mic init error:", err);
+        micBlocked = true;
         document.getElementById('instructions').textContent =
-          "Microphone unavailable. Candles will stay lit.";
+          "Microphone unavailable. Click the 'Extinguish' button below.";
       }
 
-      // Restart button
-      button = createButton("🔄 Light Candles Again");
-      button.position(width / 2 - 80, height - 60);
-      button.mousePressed(restartFlames);
-      button.style('padding', '12px 24px');
-      button.style('font-size', '16px');
-      button.style('background', 'rgba(255, 255, 255, 0.9)');
-      button.style('border', 'none');
-      button.style('border-radius', '25px');
-      button.style('cursor', 'pointer');
-      button.style('font-weight', 'bold');
-      button.style('color', '#667eea');
-      button.style('box-shadow', '0 4px 15px rgba(0,0,0,0.2)');
-      button.hide();
+    // Restart button
+  button = createButton("🔄 Light Candles Again");
+  // Centered restart button (hidden until celebration)
+  button.mousePressed(restartFlames);
+  button.addClass('ecard-button');
+  // place near bottom center
+  button.style('bottom', '30px');
+  button.style('transform', 'translateX(-50%) scale(0.96)');
+  button.style('opacity', '0');
+  // hide initially; will be shown after celebration and animated in
+  button.hide();
+      // Manual extinguish button (fallback when mic is blocked)
+      manualButton = createButton("🕯️ Extinguish Candles");
+      manualButton.mousePressed(manualExtinguish);
+      manualButton.addClass('ecard-button');
+      // position slightly above the restart button
+      manualButton.style('bottom', '90px');
+      // start slightly offset/transparent for entrance animation
+      manualButton.style('transform', 'translateX(-50%) translateY(8px) scale(0.98)');
+      manualButton.style('opacity', '0');
+      manualButton.hide();
+
+      // If mic blocked/unavailable, show the manual extinguish control instead of auto-celebrating
+      if (micBlocked) {
+        manualButton.show();
+        // animate in after a very short delay so transition applies
+        setTimeout(() => {
+          manualButton.style('opacity', '1');
+          manualButton.style('transform', 'translateX(-50%) translateY(0) scale(1)');
+        }, 20);
+      }
+    }
+
+    // Manual extinguish sequence for when microphone isn't available
+    function manualExtinguish() {
+      if (allOut) return;
+      // Disable the button immediately to prevent repeated clicks
+      try { manualButton.attribute('disabled', ''); } catch (e) {}
+      let delay = 0;
+      for (let i = 0; i < flames.length; i++) {
+        setTimeout(() => {
+          if (flames[i]) {
+            flames[i] = false;
+            createSmoke(150 + i * 100, 180);
+          }
+          // After last candle, celebrate
+          if (i === flames.length - 1) {
+            allOut = true;
+            celebrateAllOut();
+          }
+        }, delay);
+        delay += 700; // stagger extinguish timing
+      }
     }
 
     function draw() {
@@ -231,7 +293,24 @@
     function celebrateAllOut() {
       document.getElementById('message').classList.add('show');
       document.getElementById('instructions').style.display = 'none';
-      button.show();
+      // show and animate the restart button
+      try {
+        button.show();
+        // animate in
+        setTimeout(() => {
+          button.style('opacity', '1');
+          button.style('transform', 'translateX(-50%) scale(1)');
+        }, 20);
+      } catch (e) {}
+
+      // hide manual button if present
+      try {
+        if (manualButton) {
+          manualButton.style('opacity', '0');
+          setTimeout(() => { try { manualButton.hide(); } catch (e) {} }, 260);
+        }
+      } catch (e) {}
+
       for (let i = 0; i < 100; i++) confetti.push(new Confetti(width / 2, height / 2));
     }
 
@@ -243,7 +322,21 @@
       confetti = [];
       document.getElementById('message').classList.remove('show');
       document.getElementById('instructions').style.display = 'block';
-      button.hide();
+      // hide restart button and reset its transition state
+      try {
+        button.style('opacity', '0');
+        setTimeout(() => { try { button.hide(); } catch (e) {} }, 260);
+      } catch (e) {}
+
+      // reset manual button (allow it to be used again if mic still blocked)
+      try {
+        if (manualButton) {
+          manualButton.removeAttribute && manualButton.removeAttribute('disabled');
+          manualButton.style('opacity', '0');
+          manualButton.style('transform', 'translateX(-50%) translateY(8px) scale(0.98)');
+          manualButton.hide();
+        }
+      } catch (e) {}
     }
 
     class Confetti {
