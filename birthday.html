@@ -259,7 +259,7 @@
 
         if (blowStrength > 0.12) drawBlowIndicator();
 
-        if (blowStrength > 0.28 && !allOut) {
+        if (blowStrength > 0.45 && !allOut) {
           if (flames[targetCandle]) {
             flames[targetCandle] = false;
             createSmoke(150 + targetCandle * 100, 180);
