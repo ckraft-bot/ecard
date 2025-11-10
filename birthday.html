@@ -98,39 +98,85 @@
       let canvas = createCanvas(500, 600);
       canvas.parent('canvas-container');
 
-      // Try to start microphone, but don't block rendering
-      try {
-        mic = new p5.AudioIn();
-        mic.start(
-          () => {
-            console.log("Microphone started");
-            micStarted = true;
-          },
-          () => {
-            console.warn("Microphone permission denied");
-            micBlocked = true;
-            document.getElementById('instructions').textContent =
-              "Microphone blocked. Click the 'Extinguish' button below.";
-          }
-        );
-      } catch (err) {
-        console.error("Mic init error:", err);
+      // Prompt user for microphone access
+      requestMicrophoneAccess();
+    }
+
+    function requestMicrophoneAccess() {
+      // Show a friendly prompt before requesting mic
+      const userConfirmed = confirm(
+        "This page would like to use your microphone to detect when you blow out the candles. Allow microphone access?"
+      );
+
+      // Initialize buttons first
+      initializeButtons();
+
+      if (userConfirmed) {
+        // Try to start microphone
+        try {
+          mic = new p5.AudioIn();
+          mic.start(
+            () => {
+              console.log("Microphone started");
+              micStarted = true;
+              micBlocked = false;
+              document.getElementById('instructions').textContent =
+                "Blow into your microphone to put out the candles!";
+              // Hide manual button since mic is working
+              if (manualButton) {
+                manualButton.style('opacity', '0');
+                setTimeout(() => { try { manualButton.hide(); } catch (e) {} }, 260);
+              }
+            },
+            () => {
+              console.warn("Microphone permission denied");
+              micBlocked = true;
+              micStarted = false;
+              document.getElementById('instructions').textContent =
+                "Microphone blocked. Click the 'Extinguish' button below.";
+              showManualExtinguishButton();
+            }
+          );
+        } catch (err) {
+          console.error("Mic init error:", err);
+          micBlocked = true;
+          micStarted = false;
+          document.getElementById('instructions').textContent =
+            "Microphone unavailable. Click the 'Extinguish' button below.";
+          showManualExtinguishButton();
+        }
+      } else {
+        // User denied permission
         micBlocked = true;
         document.getElementById('instructions').textContent =
-          "Microphone unavailable. Click the 'Extinguish' button below.";
+          "Microphone permission denied. Click the 'Extinguish' button below.";
+        showManualExtinguishButton();
       }
+    }
 
-    // Restart button
-  button = createButton("🔄 Light Candles Again");
-  // Centered restart button (hidden until celebration)
-  button.mousePressed(restartFlames);
-  button.addClass('ecard-button');
-  // place near bottom center
-  button.style('bottom', '30px');
-  button.style('transform', 'translateX(-50%) scale(0.96)');
-  button.style('opacity', '0');
-  // hide initially; will be shown after celebration and animated in
-  button.hide();
+    function showManualExtinguishButton() {
+      if (manualButton) {
+        manualButton.show();
+        setTimeout(() => {
+          manualButton.style('opacity', '1');
+          manualButton.style('transform', 'translateX(-50%) translateY(0) scale(1)');
+        }, 20);
+      }
+    }
+
+    function initializeButtons() {
+      // Restart button
+      button = createButton("🔄 Light Candles Again");
+      // Centered restart button (hidden until celebration)
+      button.mousePressed(restartFlames);
+      button.addClass('ecard-button');
+      // place near bottom center
+      button.style('bottom', '30px');
+      button.style('transform', 'translateX(-50%) scale(0.96)');
+      button.style('opacity', '0');
+      // hide initially; will be shown after celebration and animated in
+      button.hide();
+
       // Manual extinguish button (fallback when mic is blocked)
       manualButton = createButton("🕯️ Extinguish Candles");
       manualButton.mousePressed(manualExtinguish);
@@ -141,16 +187,6 @@
       manualButton.style('transform', 'translateX(-50%) translateY(8px) scale(0.98)');
       manualButton.style('opacity', '0');
       manualButton.hide();
-
-      // If mic blocked/unavailable, show the manual extinguish control instead of auto-celebrating
-      if (micBlocked) {
-        manualButton.show();
-        // animate in after a very short delay so transition applies
-        setTimeout(() => {
-          manualButton.style('opacity', '1');
-          manualButton.style('transform', 'translateX(-50%) translateY(0) scale(1)');
-        }, 20);
-      }
     }
 
     // Manual extinguish sequence for when microphone isn't available
