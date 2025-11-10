@@ -1,1 +1,87 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.3/dist/face-landmarks-detection.min.js"></script>
+  </head>
+  <body>
+    <script>
+      let video, model, faces = [], confetti = [], triggered = false, button;
 
+      async function setup() {
+        createCanvas(400, 400);
+        video = createCapture(VIDEO);
+        video.size(width, height);
+        video.hide();
+
+        textAlign(CENTER);
+        textSize(32);
+
+        model = await faceLandmarksDetection.load(
+          faceLandmarksDetection.SupportedPackages.mediapipeFacemesh
+        );
+
+        detectFace();
+        button = createButton("Restart");
+        button.position(160, 360);
+        button.mousePressed(restart);
+      }
+
+      async function detectFace() {
+        const predictions = await model.estimateFaces({ input: video.elt });
+        faces = predictions;
+        setTimeout(detectFace, 100);
+      }
+
+      function draw() {
+        image(video, 0, 0, width, height);
+        fill(255, 255, 255, 180);
+        rect(0, 0, width, 60);
+        fill(0);
+
+        // Eye contact = both eyes detected
+        if (faces.length > 0 && !triggered) {
+          triggered = true;
+          for (let i = 0; i < 200; i++) {
+            confetti.push({
+              x: random(width),
+              y: random(-50, 0),
+              speed: random(2, 6),
+              color: color(random(255), random(255), random(255))
+            });
+          }
+        }
+
+        if (triggered) {
+          text("Congratulations!", width / 2, 40);
+          for (let c of confetti) {
+            fill(c.color);
+            rect(c.x, c.y, 6, 10);
+            c.y += c.speed;
+          }
+        } else {
+          text("Make Eye Contact!", width / 2, 40);
+        }
+
+        drawLandmarks();
+      }
+
+      function drawLandmarks() {
+        noFill();
+        stroke(0, 255, 0);
+        for (let face of faces) {
+          for (let [x, y] of face.scaledMesh) {
+            ellipse(x, y, 2, 2);
+          }
+        }
+      }
+
+      function restart() {
+        triggered = false;
+        confetti = [];
+      }
+    </script>
+  </body>
+</html>
