@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Congratulations! 🎉</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.3/dist/face-landmarks-detection.min.js"></script>
   <style>
     body {
       margin: 0;
@@ -49,7 +47,7 @@
       border-radius: 15px;
       text-align: center;
       box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-      transition: all 0.3s ease;
+      transition: opacity 0.3s ease;
     }
     
     .message-box h1 {
@@ -97,18 +95,19 @@
     
     .instructions {
       position: absolute;
-      bottom: 20px;
+      top: 50%;
       left: 50%;
-      transform: translateX(-50%);
-      background: rgba(255, 255, 255, 0.75);
-      backdrop-filter: blur(10px);
-      padding: 15px 30px;
-      border-radius: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      color: #555;
+      transform: translate(-50%, -50%);
+      color: white;
+      font-size: 1.3rem;
       text-align: center;
-      font-size: 1rem;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(10px);
+      padding: 30px 40px;
+      border-radius: 15px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      max-width: 90%;
+      line-height: 1.6;
     }
     
     .eye-indicator {
@@ -129,54 +128,111 @@
 <body>
   <div id="canvas-container">
     <div class="loading" id="loading">
-      <div>Loading face detection...</div>
+      <div>Opening card...</div>
       <div class="spinner"></div>
     </div>
   </div>
 
 <script>
-let video, model, faces = [], confetti = [], triggered = false, button;
+let confetti = [], triggered = false, button;
 let modelLoaded = false;
-let eyeContactFrames = 0;
-const REQUIRED_FRAMES = 15; // Need to look at camera for ~1.5 seconds
 let celebrationStarted = false;
 let confettiDuration = 0;
+let setupTime = Date.now();
+
+// Shake detection variables
+let lastShakeTime = 0;
+let shakeThreshold = 25; // Moderate threshold - easier to trigger
+let shakeDebounce = 500; // ms between shake triggers
+let accelX = 0, accelY = 0, accelZ = 0;
+let shakeDetected = false;
 
 async function setup() {
   let canvas = createCanvas(640, 480);
   canvas.parent('canvas-container');
 
-  // Request front camera
-  const constraints = { 
-    video: { 
-      facingMode: "user",
-      width: 640,
-      height: 480
-    } 
-  };
+  // Prevent iOS shake-to-undo and other system gestures
+  if (document.body) {
+    document.body.addEventListener('gesturestart', function(e) {
+      e.preventDefault();
+    });
+    document.body.addEventListener('touchmove', function(e) {
+      // Prevent pull-to-refresh and other iOS gestures
+      if (e.touches.length > 1) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+  }
   
-  video = createCapture(constraints);
-  video.size(width, height);
-  video.hide();
+  // Disable iOS shake gesture at system level
+  window.addEventListener('devicemotion', function(e) {
+    // Consume the event to prevent default behavior
+  }, { passive: true });
 
-  // Load face landmarks model
-  try {
-    model = await faceLandmarksDetection.load(
-      faceLandmarksDetection.SupportedPackages.mediapipeFacemesh,
-      { maxFaces: 1 }
-    );
-    modelLoaded = true;
+  // Set up UI and shake detection
+  modelLoaded = true;
+  console.log('Setup complete - shake detection ready');
+
+  // Initialize device shake detection
+  initShakeDetection();
+  
+  // Create UI immediately
+  if (document.getElementById('loading')) {
     document.getElementById('loading').style.display = 'none';
-    
-    // Create UI elements
-    createUI();
-    detectFace();
-  } catch (error) {
-    console.error("Error loading model:", error);
-    document.getElementById('loading').innerHTML = 
-      '<div style="color: #ff4444;">Failed to load face detection.<br>Please refresh the page.</div>';
+  }
+  createUI();
+}
+
+// Initialize device motion listener for shake detection
+function initShakeDetection() {
+  if (!window.DeviceMotionEvent) {
+    console.warn('DeviceMotionEvent not supported on this device');
+    return;
+  }
+  
+  // Request permission for iOS 13+
+  if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+    DeviceMotionEvent.requestPermission()
+      .then(permissionState => {
+        if (permissionState === 'granted') {
+          window.addEventListener('devicemotion', handleShake);
+          console.log('Device motion permission granted');
+        } else {
+          console.warn('Device motion permission denied');
+        }
+      })
+      .catch(console.error);
+  } else {
+    // Non-iOS 13 devices
+    window.addEventListener('devicemotion', handleShake);
+    console.log('Device motion listener added');
   }
 }
+
+// Handle device motion shake detection
+function handleShake(event) {
+  const acceleration = event.accelerationIncludingGravity;
+  accelX = acceleration.x || 0;
+  accelY = acceleration.y || 0;
+  accelZ = acceleration.z || 0;
+  
+  // Calculate magnitude of acceleration vector
+  const magnitude = Math.sqrt(accelX * accelX + accelY * accelY + accelZ * accelZ);
+  
+  // Check if shake intensity exceeds threshold and debounce time has passed
+  const now = Date.now();
+  if (magnitude > shakeThreshold && (now - lastShakeTime) > shakeDebounce) {
+    lastShakeTime = now;
+    shakeDetected = true;
+    console.log(`🤳 SHAKE DETECTED! Magnitude: ${nf(magnitude, 1, 2)}`);
+    
+    // Trigger celebration if not already triggered
+    if (!triggered) {
+      triggerCelebration();
+    }
+  }
+}
+
 
 function createUI() {
   // Message box
@@ -184,18 +240,17 @@ function createUI() {
   messageBox.class('message-box');
   messageBox.id('message-box');
   messageBox.parent('canvas-container');
-  messageBox.html('<h1>👀 Look at the camera!</h1><p>Make eye contact to celebrate</p>');
+  // messageBox.html('<h1>Open mail</h1>');
   
   // Instructions
   let instructions = createElement('div');
   instructions.class('instructions');
   instructions.id('instructions');
   instructions.parent('canvas-container');
-  instructions.html('Position your face in frame and look directly at the camera');
+  instructions.html('📱 Hold your device and shake it to reveal the surprise!');
   
   // Restart button
   button = createButton("🔄 Celebrate Again");
-  button.position(width/2 - 90, height - 80);
   button.style('padding', '12px 28px');
   button.style('font-size', '16px');
   button.style('background', 'rgba(255, 255, 255, 0.9)');
@@ -206,50 +261,27 @@ function createUI() {
   button.style('color', '#667eea');
   button.style('box-shadow', '0 4px 15px rgba(0,0,0,0.2)');
   button.style('pointer-events', 'auto');
+
+  // Center at bottom
+  button.position((windowWidth - button.width) / 2, windowHeight - 60);
+
   button.mousePressed(restart);
   button.hide();
-}
 
-async function detectFace() {
-  if (!modelLoaded) return;
-  
-  try {
-    const predictions = await model.estimateFaces({ input: video.elt });
-    faces = predictions;
-  } catch (error) {
-    console.error("Detection error:", error);
-  }
-  
-  setTimeout(detectFace, 100);
 }
 
 function draw() {
-  if (!modelLoaded) return;
+  background(102, 126, 234);
   
-  // Draw mirrored video
-  push();
-  translate(width, 0);
-  scale(-1, 1);
-  image(video, 0, 0, width, height);
-  pop();
+  // No camera needed for shake detection
   
-  // Check for eye contact
-  if (faces.length > 0 && !triggered) {
-    let face = faces[0];
-    
-    if (checkEyeContact(face)) {
-      eyeContactFrames++;
-      
-      // Draw progress indicator
-      drawEyeContactProgress();
-      
-      if (eyeContactFrames >= REQUIRED_FRAMES) {
-        triggerCelebration();
-      }
-    } else {
-      eyeContactFrames = max(0, eyeContactFrames - 2);
-    }
+  // Show message always (user will shake to celebrate)
+  let messageBox = document.getElementById('message-box');
+  if (messageBox) {
+    messageBox.style.opacity = '1';
   }
+  
+  // Removed debug HUD display
   
   // Draw confetti
   if (triggered) {
@@ -272,53 +304,8 @@ function draw() {
   }
 }
 
-function checkEyeContact(face) {
-  // Get eye landmarks (simplified detection)
-  const mesh = face.scaledMesh;
-  
-  // Left eye indices: 133, 33
-  // Right eye indices: 362, 263
-  const leftEye = mesh[133];
-  const rightEye = mesh[362];
-  const noseTip = mesh[1];
-  
-  // Calculate if eyes are open and facing camera
-  const leftEyeY = leftEye[1];
-  const rightEyeY = rightEye[1];
-  const eyeLevel = (leftEyeY + rightEyeY) / 2;
-  
-  // Check if face is relatively frontal (eyes should be roughly level)
-  const eyeLevelDiff = abs(leftEyeY - rightEyeY);
-  
-  // Face should be centered and frontal
-  return eyeLevelDiff < 20;
-}
-
-function drawEyeContactProgress() {
-  let progress = eyeContactFrames / REQUIRED_FRAMES;
-  
-  // Draw progress circle
-  push();
-  translate(width / 2, height / 2);
-  
-  noFill();
-  strokeWeight(8);
-  
-  // Background circle
-  stroke(255, 255, 255, 100);
-  ellipse(0, 0, 100, 100);
-  
-  // Progress arc
-  stroke(102, 126, 234);
-  arc(0, 0, 100, 100, -HALF_PI, -HALF_PI + TWO_PI * progress);
-  
-  // Eye icon
-  fill(255);
-  textSize(40);
-  textAlign(CENTER, CENTER);
-  text('👁️', 0, 0);
-  
-  pop();
+// Debug HUD removed - no metadata display
+function drawDebugHUD_Shake() {
 }
 
 function triggerCelebration() {
@@ -327,17 +314,21 @@ function triggerCelebration() {
   
   // Update message
   let messageBox = document.getElementById('message-box');
-  messageBox.innerHTML = '<h1>🎉 Congratulations! 🎉</h1><p>You did it! Amazing work!</p>';
+  messageBox.innerHTML = '<h1>🎉 Congratulations! 🎉</h1><p>You did it! Well done at the horse show!</p>';
   
   // Hide instructions
   document.getElementById('instructions').style.display = 'none';
   
+  // Create confetti explosion from center
+  const confettiX = width / 2;
+  const confettiY = height / 2;
+  
   // Create confetti explosion
   for (let i = 0; i < 150; i++) {
-    confetti.push(new Confetti(width / 2, height / 2));
+    confetti.push(new Confetti(confettiX, confettiY));
   }
   
-  // Add more confetti from top
+  // Add more confetti from top of screen
   for (let i = 0; i < 100; i++) {
     confetti.push(new Confetti(random(width), -random(50)));
   }
@@ -353,7 +344,7 @@ function restart() {
   
   // Reset message
   let messageBox = document.getElementById('message-box');
-  messageBox.innerHTML = '<h1>👀 Look at the camera!</h1><p>Make eye contact to celebrate</p>';
+  messageBox.innerHTML = '<p>Shake your device to see the message</p>';
   
   // Show instructions
   document.getElementById('instructions').style.display = 'block';
