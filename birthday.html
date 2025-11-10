@@ -98,62 +98,40 @@
       let canvas = createCanvas(500, 600);
       canvas.parent('canvas-container');
 
-      // Prompt user for microphone access
-      requestMicrophoneAccess();
-    }
-
-    function requestMicrophoneAccess() {
-      // Show a friendly prompt before requesting mic
-      const userConfirmed = confirm(
-        "This page would like to use your microphone. Allow microphone access?"
-      );
-
-      // Initialize buttons first
+      // Initialize buttons
       initializeButtons();
 
-      if (userConfirmed) {
-        // Request microphone access using getUserMedia
-        navigator.mediaDevices
-          .getUserMedia({ audio: true })
-          .then((stream) => {
-            console.log("getUserMedia successful, now initializing p5.AudioIn");
-            // Now try to initialize p5.AudioIn after we have permission
-            try {
-              mic = new p5.AudioIn();
-              mic.start(() => {
-                console.log("Microphone started successfully");
-                micStarted = true;
-                micBlocked = false;
-                document.getElementById('instructions').textContent =
-                  "Blow into your microphone to put out the candles!";
-                // Hide manual button since mic is working
-                if (manualButton) {
-                  manualButton.style('opacity', '0');
-                  setTimeout(() => { try { manualButton.hide(); } catch (e) {} }, 260);
-                }
-              });
-            } catch (err) {
-              console.error("p5.AudioIn init error:", err);
-              micBlocked = true;
-              micStarted = false;
-              document.getElementById('instructions').textContent =
-                "Microphone error. Click the 'Blow' button below.";
-              showManualExtinguishButton();
+      // Try to start microphone - browser will automatically prompt for permission
+      try {
+        mic = new p5.AudioIn();
+        mic.start(
+          () => {
+            console.log("Microphone started successfully");
+            micStarted = true;
+            micBlocked = false;
+            document.getElementById('instructions').textContent =
+              "Blow into your microphone to put out the candles!";
+            // Hide manual button since mic is working
+            if (manualButton) {
+              manualButton.style('opacity', '0');
+              setTimeout(() => { try { manualButton.hide(); } catch (e) {} }, 260);
             }
-          })
-          .catch((err) => {
-            console.error("getUserMedia error:", err);
+          },
+          () => {
+            console.warn("Microphone permission denied");
             micBlocked = true;
             micStarted = false;
             document.getElementById('instructions').textContent =
               "Microphone blocked. Click the 'Blow' button below.";
             showManualExtinguishButton();
-          });
-      } else {
-        // User denied permission
+          }
+        );
+      } catch (err) {
+        console.error("Mic init error:", err);
         micBlocked = true;
+        micStarted = false;
         document.getElementById('instructions').textContent =
-          "Microphone permission denied. Click the 'Blow' button below.";
+          "Microphone unavailable. Click the 'Blow' button below.";
         showManualExtinguishButton();
       }
     }
@@ -230,12 +208,12 @@
       if (micStarted) {
         let vol = mic.getLevel();
 
-        if (vol > 0.15) blowStrength = min(blowStrength + 0.1, 1);
+        if (vol > 0.05) blowStrength = min(blowStrength + 0.1, 1);
         else blowStrength = max(blowStrength - 0.05, 0);
 
-        if (blowStrength > 0.3) drawBlowIndicator();
+        if (blowStrength > 0.15) drawBlowIndicator();
 
-        if (blowStrength > 0.5 && !allOut) {
+        if (blowStrength > 0.25 && !allOut) {
           if (flames[targetCandle]) {
             flames[targetCandle] = false;
             createSmoke(150 + targetCandle * 100, 180);
