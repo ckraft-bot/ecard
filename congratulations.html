@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Congratulations! 🎉</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  overflow: hidden;
+}
+#canvas-container {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.message-box {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255,255,255,0.75);
+  backdrop-filter: blur(10px);
+  border-radius: 15px;
+  padding: 20px 40px;
+  text-align: center;
+}
+.instructions {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 1.3rem;
+  text-align: center;
+  background: rgba(255,255,255,0.2);
+  backdrop-filter: blur(10px);
+  padding: 30px 40px;
+  border-radius: 15px;
+}
+button {
+  padding: 12px 28px;
+  font-size: 16px;
+  border-radius: 25px;
+  cursor: pointer;
+  font-weight: bold;
+  color: #667eea;
+  background: rgba(255,255,255,0.9);
+  border: none;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+</style>
+</head>
+<body>
+<div id="canvas-container">
+  <div class="message-box" id="message-box">
+    📱 Shake your device to see the message
+  </div>
+  <div class="instructions" id="instructions">
+    <button id="enableButton">Enable Shake Detection</button>
+  </div>
+</div>
+
+<script>
+let confetti = [], triggered = false, button;
+let shakeThreshold = 50, lastShakeTime = 0, shakeDebounce = 500;
+
+function setup() {
+  let canvas = createCanvas(640, 480);
+  canvas.parent('canvas-container');
+
+  // Restart button
+  button = createButton("🔄 Celebrate Again");
+  button.mousePressed(restart);
+  button.hide();
+  positionRestartButton();
+}
+
+// Position restart button at center bottom
+function positionRestartButton() {
+  button.position((windowWidth - button.width) / 2, windowHeight - 60);
+}
+
+// Recalculate button position on window resize
+function windowResized() {
+  positionRestartButton();
+}
+
+function draw() {
+  background(102,126,234);
+
+  if(triggered){
+    for(let i=confetti.length-1;i>=0;i--){
+      confetti[i].update();
+      confetti[i].display();
+      if(confetti[i].y>height+50){ confetti.splice(i,1); }
+    }
+    if(confetti.length===0) button.show();
+  }
+}
+
+// Shake detection
+function handleShake(event){
+  const acc = event.accelerationIncludingGravity;
+  const mag = Math.sqrt((acc.x||0)**2 + (acc.y||0)**2 + (acc.z||0)**2);
+  const now = Date.now();
+  if(mag>shakeThreshold && now-lastShakeTime>shakeDebounce){
+    lastShakeTime = now;
+    if(!triggered) triggerCelebration();
+  }
+}
+
+function triggerCelebration(){
+  triggered = true;
+  document.getElementById('message-box').innerHTML =
+    '<h1>🎉 Congratulations 🎉</h1><p>on your retirement!</p>';
+
+  for(let i=0;i<150;i++) confetti.push(new Confetti(width/2,height/2));
+  for(let i=0;i<100;i++) confetti.push(new Confetti(random(width),-random(50)));
+}
+
+function restart(){
+  triggered=false;
+  confetti=[];
+  document.getElementById('message-box').innerHTML =
+    '📱 Shake your device to see the message';
+  button.hide();
+}
+
+// Confetti class
+class Confetti{
+  constructor(x,y){
+    this.x=x; this.y=y;
+    this.vx=random(-6,6); this.vy=random(-10,-3);
+    this.size=random(8,15);
+    this.color=color(random(255),random(255),random(255));
+    this.rotation=random(TWO_PI);
+    this.rotationSpeed=random(-0.3,0.3);
+    this.gravity=0.3;
+    this.shape=random(['rect','ellipse','triangle']);
+  }
+  update(){
+    this.x+=this.vx;
+    this.y+=this.vy;
+    this.vy+=this.gravity;
+    this.rotation+=this.rotationSpeed;
+    this.vx*=0.99;
+  }
+  display(){
+    push();
+    translate(this.x,this.y);
+    rotate(this.rotation);
+    fill(this.color);
+    noStroke();
+    if(this.shape==='rect') rect(0,0,this.size,this.size);
+    else if(this.shape==='ellipse') ellipse(0,0,this.size,this.size);
+    else triangle(0,-this.size/2,-this.size/2,this.size/2,this.size/2,this.size/2);
+    pop();
+  }
+}
+
+// iOS permission button
+document.getElementById('enableButton').addEventListener('click', async () => {
+  if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission==='function'){
+    const response = await DeviceMotionEvent.requestPermission();
+    if(response==='granted'){
+      window.addEventListener('devicemotion', handleShake);
+      console.log('Shake detection enabled');
+    } else {
+      alert('Permission denied');
+      return;
+    }
+  } else {
+    window.addEventListener('devicemotion', handleShake);
+    console.log('Shake detection enabled (non-iOS)');
+  }
+
+  // Hide only the instructions button, keep the message visible
+  document.getElementById('instructions').style.display='none';
+});
+</script>
+</body>
+</html>

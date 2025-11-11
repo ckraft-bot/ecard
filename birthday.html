@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Happy Birthday Claire! 🎂</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    #canvas-container {
+      position: relative;
+    }
+
+    .message {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      font-size: 2rem;
+      font-weight: bold;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+      opacity: 0;
+      transition: opacity 0.5s;
+      text-align: center;
+      width: 100%;
+    }
+
+    .message.show {
+      opacity: 1;
+    }
+
+    .instructions {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      font-size: 1rem;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(10px);
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    /* Shared button style for nicer visuals + subtle animation */
+    .ecard-button {
+      position: absolute;
+      left: 50%;
+      transform-origin: center;
+      transition: opacity 260ms cubic-bezier(.2,.8,.2,1), transform 260ms cubic-bezier(.2,.8,.2,1);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+      border: none;
+      padding: 12px 20px;
+      border-radius: 22px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #667eea;
+      background: rgba(255,255,255,0.96);
+      cursor: pointer;
+      opacity: 0;
+      will-change: opacity, transform;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container">
+  <div class="message" id="message"> Happy Birthday Claire!</div>
+    <div class="instructions" id="instructions">Blow into your microphone to put out the candles!</div>
+  </div>
+
+  <script>
+  let mic;
+  let micStarted = false;
+  let micBlocked = false;
+  let manualButton;
+  let audioContext;
+  let analyzer;
+  let dataArray;
+    let flames = [true, true, true];
+    let button;
+    let confetti = [];
+    let allOut = false;
+    let blowStrength = 0;
+    let targetCandle = 0;
+
+    
+    function setup() {
+      let canvas = createCanvas(500, 600);
+      canvas.parent('canvas-container');
+
+      // Initialize buttons
+      initializeButtons();
+
+      // Request microphone access using Web Audio API
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices
+          .getUserMedia({ audio: true })
+          .then((stream) => {
+            console.log("Microphone permission granted");
+            try {
+              // Create audio context
+              audioContext = new (window.AudioContext || window.webkitAudioContext)();
+              analyzer = audioContext.createAnalyser();
+              analyzer.fftSize = 2048;
+              
+              // Connect the microphone stream to the analyzer
+              const source = audioContext.createMediaStreamSource(stream);
+              source.connect(analyzer);
+              
+              // Create data array for frequency data
+              dataArray = new Uint8Array(analyzer.frequencyBinCount);
+              
+              micStarted = true;
+              micBlocked = false;
+              // Some browsers (Chrome) require a user gesture to resume AudioContext
+              document.addEventListener('click', () => {
+                if (audioContext && audioContext.state === 'suspended') audioContext.resume();
+              }, { once: true });
+              document.getElementById('instructions').textContent =
+                "Blow into your microphone to put out the candles!";
+              // Hide manual button since mic is working
+              if (manualButton) {
+                manualButton.style('opacity', '0');
+                setTimeout(() => { try { manualButton.hide(); } catch (e) {} }, 260);
+              }
+              console.log("Microphone initialized successfully with Web Audio API");
+            } catch (err) {
+              console.error("Audio setup error:", err);
+              handleMicError();
+            }
+          })
+          .catch((err) => {
+            console.error("getUserMedia error:", err);
+            handleMicError();
+          });
+      } else {
+        console.error("getUserMedia not supported");
+        handleMicError();
+      }
+    }
+
+    // Create and position the Restart and Manual Blow buttons
+    function initializeButtons() {
+      try {
+        // Restart button (hidden until all out)
+        button = createButton('Restart');
+        button.addClass('ecard-button');
+        button.parent('canvas-container');
+        button.position((windowWidth / 2) - 40, windowHeight - 100);
+        button.style('opacity', '0');
+        button.hide();
+        button.mousePressed(restartFlames);
+
+        // Manual blow/fallback button
+        manualButton = createButton('🕯️ Blow (Manual)');
+        manualButton.addClass('ecard-button');
+        manualButton.parent('canvas-container');
+        manualButton.position((windowWidth / 2) - 80, windowHeight - 140);
+        manualButton.mousePressed(() => {
+          // simulate extinguish one candle
+          if (!allOut) {
+            if (flames[targetCandle]) {
+              flames[targetCandle] = false;
+              createSmoke(150 + targetCandle * 100, 180);
+              targetCandle++;
+              if (targetCandle >= flames.length) {
+                allOut = true;
+                celebrateAllOut();
+              }
+            }
+          }
+        });
+
+        // show manual button initially if mic not started
+        if (!micStarted) {
+          manualButton.style('opacity', '1');
+        } else {
+          manualButton.style('opacity', '0');
+          manualButton.hide();
+        }
+      } catch (e) {
+        console.warn('Button initialization failed', e);
+      }
+    }
+
+    function showManualExtinguishButton() {
+      try {
+        if (!manualButton) initializeButtons();
+        manualButton.show();
+        manualButton.style('opacity', '1');
+        manualButton.style('transform', 'translateX(-50%) translateY(0px) scale(1)');
+      } catch (e) {
+        console.warn('Unable to show manual button', e);
+      }
+    }
+
+    function handleMicError() {
+      micBlocked = true;
+      micStarted = false;
+      document.getElementById('instructions').textContent =
+        "Microphone unavailable. Click the 'Blow' button below.";
+      showManualExtinguishButton();
+    }
+
+    function getMicLevel() {
+      if (!analyzer || !dataArray) return 0;
+      analyzer.getByteFrequencyData(dataArray);
+      
+      // Calculate average frequency data (represents volume)
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        sum += dataArray[i];
+      }
+      let average = sum / dataArray.length;
+      
+      // Normalize to 0-1 range
+      return average / 255;
+    }
+    function draw() {
+      // Clear background
+      background(30, 20, 60);
+
+      // Draw cake and candles
+      drawCake();
+
+      // Update and display confetti/smoke particles (iterate backwards when splicing)
+      for (let i = confetti.length - 1; i >= 0; i--) {
+        try {
+          confetti[i].update();
+          confetti[i].display();
+          if (confetti[i].y > height || confetti[i].alpha <= 0) confetti.splice(i, 1);
+        } catch (e) {
+          // Defensive: if a particle type was unexpected, remove it
+          confetti.splice(i, 1);
+        }
+      }
+
+      // Only enable blowing logic if microphone is working
+      if (micStarted) {
+        let vol = getMicLevel();
+
+        // Gentle smoothing and thresholds to make blowing detection reliable
+        if (vol > 0.05) blowStrength = min(blowStrength + 0.05, 1);
+        else blowStrength = max(blowStrength - 0.03, 0);
+
+        if (blowStrength > 0.12) drawBlowIndicator();
+
+        if (blowStrength > 0.75 && !allOut) {
+          if (flames[targetCandle]) {
+            flames[targetCandle] = false;
+            createSmoke(150 + targetCandle * 100, 180);
+            targetCandle++;
+            if (targetCandle >= flames.length) {
+              allOut = true;
+              celebrateAllOut();
+            }
+          }
+        }
+      }
+
+      // (debug HUD removed)
+    }
+
+    function drawCake() {
+      push();
+      fill(0, 0, 0, 30);
+      ellipse(250, 450, 280, 40);
+
+      fill(255, 200, 220);
+      stroke(200, 150, 180);
+      strokeWeight(3);
+      rect(100, 350, 300, 80, 10);
+
+      noStroke();
+      fill(255, 220, 240);
+      for (let i = 0; i < 6; i++) ellipse(125 + i * 50, 350, 60, 30);
+
+      fill(255, 180, 200);
+      stroke(200, 130, 160);
+      strokeWeight(3);
+      rect(125, 280, 250, 70, 10);
+
+      noStroke();
+      fill(255, 210, 230);
+      for (let i = 0; i < 5; i++) ellipse(150 + i * 50, 280, 60, 30);
+
+      for (let i = 0; i < 30; i++) {
+        fill(random(255), random(255), random(255));
+        ellipse(130 + random(240), 290 + random(50), 4, 8);
+      }
+      pop();
+
+      for (let i = 0; i < 3; i++) drawCandle(150 + i * 100, 220, flames[i]);
+    }
+
+    function drawCandle(x, y, isLit) {
+      push();
+      fill(255, 100, 100);
+      stroke(200, 80, 80);
+      strokeWeight(2);
+      rect(x - 8, y, 16, 60, 5);
+
+      stroke(255, 150, 150);
+      for (let i = 0; i < 3; i++) line(x - 8, y + 15 + i * 15, x + 8, y + 15 + i * 15);
+
+      stroke(50);
+      strokeWeight(2);
+      line(x, y - 5, x, y + 5);
+
+      if (isLit) {
+        noStroke();
+        fill(255, 150, 0, 200);
+        ellipse(x, y - 10 + sin(frameCount * 0.1 + x) * 2, 20, 28);
+        fill(255, 220, 0, 220);
+        ellipse(x, y - 8 + sin(frameCount * 0.1 + x) * 2, 12, 20);
+        fill(255, 255, 200, 250);
+        ellipse(x, y - 6 + sin(frameCount * 0.1 + x) * 2, 6, 12);
+        fill(255, 200, 0, 30);
+        ellipse(x, y - 10, 40, 45);
+      }
+      pop();
+    }
+
+    function drawBlowIndicator() {
+      push();
+      noStroke();
+      fill(200, 230, 255, 100 + blowStrength * 100);
+      for (let i = 0; i < 3; i++) {
+        let size = 30 + i * 20 + blowStrength * 30;
+        ellipse(250, 150, size, size * 0.6);
+      }
+      stroke(255, 255, 255, 150);
+      strokeWeight(2);
+      for (let i = 0; i < 5; i++) {
+        let x = 250 + (frameCount * 3 + i * 30) % 150;
+        line(x - 20, 140 + i * 10, x, 140 + i * 10);
+      }
+      pop();
+    }
+
+    function createSmoke(x, y) {
+      for (let i = 0; i < 10; i++) confetti.push(new Smoke(x, y));
+    }
+
+    function celebrateAllOut() {
+      document.getElementById('message').classList.add('show');
+      document.getElementById('instructions').style.display = 'none';
+      // show and animate the restart button
+      try {
+        button.show();
+        // animate in
+        setTimeout(() => {
+          button.style('opacity', '1');
+          button.style('transform', 'translateX(-50%) scale(1)');
+        }, 20);
+      } catch (e) {}
+
+      // hide manual button if present
+      try {
+        if (manualButton) {
+          manualButton.style('opacity', '0');
+          setTimeout(() => { try { manualButton.hide(); } catch (e) {} }, 260);
+        }
+      } catch (e) {}
+
+      for (let i = 0; i < 100; i++) confetti.push(new Confetti(width / 2, height / 2));
+    }
+
+    function restartFlames() {
+      flames = [true, true, true];
+      allOut = false;
+      targetCandle = 0;
+      blowStrength = 0;
+      confetti = [];
+      document.getElementById('message').classList.remove('show');
+      document.getElementById('instructions').style.display = 'block';
+      // hide restart button and reset its transition state
+      try {
+        button.style('opacity', '0');
+        setTimeout(() => { try { button.hide(); } catch (e) {} }, 260);
+      } catch (e) {}
+
+      // reset manual button (allow it to be used again if mic still blocked)
+      try {
+        if (manualButton) {
+          manualButton.removeAttribute && manualButton.removeAttribute('disabled');
+          manualButton.style('opacity', '0');
+          manualButton.style('transform', 'translateX(-50%) translateY(8px) scale(0.98)');
+          manualButton.hide();
+        }
+      } catch (e) {}
+    }
+
+    class Confetti {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.vx = random(-5, 5);
+        this.vy = random(-8, -3);
+        this.size = random(5, 12);
+        this.color = color(random(255), random(255), random(255));
+        this.rotation = random(TWO_PI);
+        this.rotationSpeed = random(-0.2, 0.2);
+      }
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vy += 0.2;
+        this.rotation += this.rotationSpeed;
+      }
+      display() {
+        push();
+        translate(this.x, this.y);
+        rotate(this.rotation);
+        fill(this.color);
+        noStroke();
+        rectMode(CENTER);
+        rect(0, 0, this.size, this.size);
+        pop();
+      }
+    }
+
+    class Smoke {
+      constructor(x, y) {
+        this.x = x + random(-5, 5);
+        this.y = y;
+        this.vx = random(-0.5, 0.5);
+        this.vy = random(-2, -1);
+        this.size = random(5, 10);
+        this.alpha = 200;
+      }
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.alpha -= 5;
+        this.size += 0.5;
+      }
+      display() {
+        if (this.alpha > 0) {
+          push();
+          noStroke();
+          fill(150, 150, 150, this.alpha);
+          ellipse(this.x, this.y, this.size);
+          pop();
+        }
+      }
+    }
+  </script>
+</body>
+</html>

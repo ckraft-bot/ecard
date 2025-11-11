@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gratitude Scratch Card 💌</title>
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+  #canvas-container {
+    position: relative;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    max-width: 90vw;
+    max-height: 80vh;
+    width: 600px;
+    height: 400px;
+  }
+  .message-box {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    padding: 15px 30px;
+    text-align: center;
+    font-size: 1.2rem;
+    z-index: 10; /* on top */
+  }
+  .hidden-message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.5rem;
+    color: #ffeb3b;
+    font-weight: bold;
+    text-align: center;
+    width: 80%;
+    line-height: 1.4;
+    pointer-events: none;
+    z-index: 1; /* under overlay */
+  }
+  canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 5; /* above hidden message, below instructions */
+  }
+</style>
+</head>
+<body>
+<div id="canvas-container">
+  <div class="message-box" id="instructions">
+    📱 Scratch the card to reveal your message!
+  </div>
+  <div class="hidden-message" id="hiddenMessage">
+    💌 Thank you for being part of my journey.<br>
+    You make the world brighter. 🌟
+  </div>
+</div>
+
+<script>
+const container = document.getElementById('canvas-container');
+const instructions = document.getElementById('instructions');
+const hiddenMessage = document.getElementById('hiddenMessage');
+
+let overlayCanvas, overlayCtx;
+let scratching = false;
+
+function initScratchCard() {
+  // Create overlay canvas
+  overlayCanvas = document.createElement('canvas');
+  overlayCanvas.width = container.offsetWidth;
+  overlayCanvas.height = container.offsetHeight;
+  overlayCanvas.style.position = 'absolute';
+  overlayCanvas.style.top = 0;
+  overlayCanvas.style.left = 0;
+  overlayCanvas.style.zIndex = 5;
+  container.appendChild(overlayCanvas);
+
+  overlayCtx = overlayCanvas.getContext('2d');
+
+  // Fill overlay with gray color
+  overlayCtx.fillStyle = '#555';
+  overlayCtx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+  overlayCtx.globalCompositeOperation = 'destination-out';
+
+  // Mouse events
+  overlayCanvas.addEventListener("mousedown", () => scratching = true);
+  overlayCanvas.addEventListener("mouseup", () => scratching = false);
+  overlayCanvas.addEventListener("mouseleave", () => scratching = false);
+  overlayCanvas.addEventListener("mousemove", scratch);
+
+  // Touch events
+  overlayCanvas.addEventListener("touchstart", (e) => {
+    scratching = true;
+    scratch(e.touches[0]);
+  });
+  overlayCanvas.addEventListener("touchmove", (e) => {
+    scratch(e.touches[0]);
+    e.preventDefault(); 
+  });
+  overlayCanvas.addEventListener("touchend", () => scratching = false);
+  overlayCanvas.addEventListener("touchcancel", () => scratching = false);
+}
+
+function scratch(e) {
+  if (!scratching) return;
+  const rect = overlayCanvas.getBoundingClientRect();
+  const x = (e.clientX || e.pageX) - rect.left;
+  const y = (e.clientY || e.pageY) - rect.top;
+  overlayCtx.beginPath();
+  overlayCtx.arc(x, y, 30, 0, Math.PI * 2);
+  overlayCtx.fill();
+
+  // Hide instructions on first scratch
+  instructions.style.display = 'none';
+}
+
+// Initialize
+window.addEventListener('load', initScratchCard);
+window.addEventListener('resize', () => {
+  if (overlayCanvas) {
+    const imgData = overlayCtx.getImageData(0,0,overlayCanvas.width, overlayCanvas.height);
+    overlayCanvas.width = container.offsetWidth;
+    overlayCanvas.height = container.offsetHeight;
+    overlayCtx.putImageData(imgData, 0, 0);
+  }
+});
+</script>
+</body>
+</html>
